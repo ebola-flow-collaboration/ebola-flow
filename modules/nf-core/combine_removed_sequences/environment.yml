@@ -1,0 +1,6 @@
+name: combine_removed_sequences
+channels:
+  - conda-forge
+  - bioconda
+dependencies:
+  - pandas=2.2.1

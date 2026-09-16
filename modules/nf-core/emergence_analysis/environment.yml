@@ -1,0 +1,16 @@
+channels:
+  - conda-forge
+  - bioconda
+dependencies:
+  - r-base >=4.3
+  - r-ape
+  - r-phytools
+  - r-dplyr
+  - r-ggplot2
+  - r-stringr
+  - r-readr
+  - r-knitr
+  - r-rmarkdown
+  - pandoc
+  - bioconductor-treeio
+  - bioconductor-ggtree

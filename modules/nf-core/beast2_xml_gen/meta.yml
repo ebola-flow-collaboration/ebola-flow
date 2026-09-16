@@ -1,0 +1,62 @@
+---
+name: "beast2_xml_gen"
+description: Generate a BEAST2 XML configuration file from a template, sequences, and metadata.
+keywords:
+  - beast2
+  - xml
+  - phylogenetics
+  - phylodynamics
+tools:
+  - "beast2-xml":
+      description: "Python package for generating BEAST2 XML files"
+      homepage: "https://github.com/acorg/beast2-xml"
+      licence: ["MIT"]
+  - "dark-matter":
+      description: "Python package for sequence handling"
+      homepage: "https://github.com/acorg/dark-matter"
+      licence: ["MIT"]
+
+input:
+  - - meta:
+        type: map
+        description: |
+          Groovy Map containing sample information.
+          e.g. `[ id:'sample1' ]`
+    - template_xml:
+        type: file
+        description: BEAST2 template XML file defining the model.
+        pattern: "*.xml"
+    - fasta:
+        type: file
+        description: FASTA file containing aligned sequences.
+        pattern: "*.{fa,fasta,fna}"
+    - metadata:
+        type: file
+        description: CSV or TSV file with sample metadata including collection dates.
+        pattern: "*.{csv,tsv}"
+    - initial_tree:
+        type: file
+        description: |
+          Optional Newick tree file to use as initial tree.
+          Pass an empty file placeholder (NO_FILE) if not used.
+        pattern: "*.{nwk,newick,tre,tree}"
+
+output:
+  - xml:
+      - meta:
+          type: map
+          description: Groovy Map containing sample information.
+      - "*.xml":
+          type: file
+          description: Generated BEAST2 XML ready for analysis.
+          pattern: "*.xml"
+  - versions:
+      - "versions.yml":
+          type: file
+          description: File containing software versions.
+          pattern: "versions.yml"
+
+authors:
+  - "@martin-grunnill"
+maintainers:
+  - "@martin-grunnill"

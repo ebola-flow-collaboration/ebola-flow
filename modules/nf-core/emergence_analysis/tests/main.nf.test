@@ -1,0 +1,38 @@
+nextflow_process {
+
+    name "Test Process EMERGENCE_ANALYSIS"
+    script "../main.nf"
+    process "EMERGENCE_ANALYSIS"
+
+    tag "modules"
+    tag "modules_nfcore"
+    tag "emergence_analysis"
+
+    test("emergence_analysis - stub") {
+
+        options "-stub"
+
+        when {
+            process {
+                """
+                input[0] = [
+                    [ id: "test" ],
+                    file("dummy_div_raw.treefile"),
+                    file("dummy_div_clean.nwk"),
+                    file("dummy_time.nwk"),
+                    file("dummy_metadata.tsv")
+                ]
+                """
+            }
+        }
+
+        then {
+            assertAll(
+                { assert process.success },
+                { assert process.out.html.get(0).get(1).endsWith("_emergence_analysis.html") },
+                { assert process.out.rmd.get(0).get(1).endsWith("_emergence_analysis.Rmd") },
+                { assert snapshot(process.out.versions).match("versions") }
+            )
+        }
+    }
+}

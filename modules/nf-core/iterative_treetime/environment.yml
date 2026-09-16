@@ -1,0 +1,14 @@
+name: iterative_treetime
+channels:
+  - conda-forge
+  - bioconda
+dependencies:
+  - python>=3.9
+  - treetime>=0.11
+  - biopython>=1.79
+  - matplotlib>=3.5
+  - pandas>=1.4
+  - numpy>=1.21
+  - pyyaml>=6.0
+  - python-dateutil>=2.8
+  - baltic==0.3.0

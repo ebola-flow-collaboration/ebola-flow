@@ -1,0 +1,238 @@
+---
+title: "Ebola variant emergence surveillance analytics"
+author: "FIRM, MH-SPIB"
+date: "`r Sys.Date()`"
+output: html_document
+params:
+  metadata: "trimmed_metadata.tsv"
+  div_tree_raw: "ebola-bdbv.treefile"
+  div_tree_clean: "genetic_distance_tree.nwk"
+  time_tree: "temporal_tree.nwk"
+  rtt_script: "rtt_fit_plot.R"
+  name_col: "accessionVersion"
+  date_col: "sampleCollectionDate"
+  y_cut_val: 0.00081
+  n_sd: 3
+---
+
+```{r setup, include=FALSE, echo=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+library(treeio)
+library(ggtree)
+library(dplyr)
+library(stringr)
+library(ggplot2)
+library(readr)
+```
+
+```{r unpack-params, echo=FALSE}
+# unpack params into standalone variables used throughout this report --------
+metadata_path  <- params$metadata
+div_tree_raw   <- params$div_tree_raw
+div_tree_clean <- params$div_tree_clean
+time_tree_path <- params$time_tree
+rtt_script     <- params$rtt_script
+name_col       <- params$name_col
+date_col       <- params$date_col
+y_cut_val      <- params$y_cut_val
+n_sd           <- params$n_sd
+```
+
+```{r load-meta, echo=FALSE}
+# load and clean metadata ------------------------------------------------
+meta <- read.delim2(metadata_path)
+meta[[date_col]] <- as.Date(meta[[date_col]])
+# note: sequences known to be problematic (poor quality, ADAR editing, etc.)
+# are expected to have already been removed upstream.
+
+# make a coarse Location variable: keep country for non-DRC, otherwise
+# collapse DRC admin-2 areas into a few groups of interest.
+bunia_rwampara <- c("bunia", "rwampara")
+mongbwalu      <- c("mongbwalu", "mongwalu", "mungwalu")
+
+df <- meta
+if (all(c("geoLocAdmin2", "geoLocCountry") %in% colnames(df))) {
+  df <- df %>%
+    mutate(
+      admin2_lower  = str_to_lower(str_trim(geoLocAdmin2)),
+      country_lower = str_to_lower(str_trim(geoLocCountry)),
+      Location = case_when(
+        str_detect(country_lower, "democratic republic|congo|drc") &
+          admin2_lower %in% bunia_rwampara ~ "Bunia_Rwampara",
+        str_detect(country_lower, "democratic republic|congo|drc") &
+          admin2_lower %in% mongbwalu      ~ "Mongbwalu",
+        str_detect(country_lower, "democratic republic|congo|drc") ~ "rest_DRC",
+        TRUE ~ str_trim(geoLocCountry)
+      )
+    ) %>%
+    select(-admin2_lower, -country_lower)
+} else {
+  df$Location <- NA_character_
+}
+```
+
+```{r load-trees, echo=FALSE}
+# diversity tree (iqtree result, no clock outliers removed)
+div_tree1        <- read.tree(div_tree_raw)
+tree_path_divraw <- div_tree_raw
+
+# diversity tree after clock outliers removed (treetime genetic distance tree)
+div_tree2          <- read.tree(div_tree_clean)
+tree_path_divclean <- div_tree_clean
+
+# time tree (treetime temporal tree)
+time_tree <- read.tree(time_tree_path)
+
+# load the root-to-tip regression function
+source(rtt_script)
+
+# manual thresholds (dataset dependent)
+# (y_cut_val already unpacked above)
+```
+
+## Checking for successful clades
+
+Looking for any long branches or any dominating clades.
+
+Plot of the diversity tree (full data, no clock outliers removed):
+
+```{r trees-div, fig.height = 12, fig.width = 8, echo=FALSE}
+p <- ggtree(div_tree1) %<+% df +
+  geom_tippoint(aes(colour = Location), size = 2, alpha = 1) +
+  geom_tiplab(size = 0) +
+  scale_color_brewer(palette = "Set1") +
+  theme_tree2()
+p
+```
+
+(number of sequences in tree = `r length(div_tree1$tip.label)`)
+
+The time tree after clock outliers are removed:
+
+```{r trees-time, fig.height = 12, fig.width = 8, echo=FALSE}
+p3 <- ggtree(time_tree, mrsd = max(meta[[date_col]], na.rm = TRUE)) %<+% df +
+  geom_tippoint(aes(colour = Location), size = 2, alpha = 1) +
+  geom_tiplab(size = 0) +
+  scale_color_brewer(palette = "Set1") +
+  theme_tree2()
+p3
+```
+
+(number of sequences in tree = `r length(time_tree$tip.label)`)
+
+The number of sequences removed by the iterative TreeTime run is
+`r length(div_tree1$tip.label) - length(time_tree$tip.label)`.
+
+## Testing for evolutionary jumps
+
+1. Using the diversity tree, plot root-to-tip with linear regression (`r n_sd` SD shaded region).
+2. Find tips at the top right of the plot, outside the SD envelope (collect names).
+3. Re-plot the diversity and time tree with the outliers highlighted. If they
+   cluster in a clade coming off a long-ish branch, it could be an emerging variant.
+
+### 1. Find clock outliers
+
+Plot with the entire data set (both simple and best-fit regression), no outliers removed:
+
+```{r r2t-raw, echo=FALSE}
+# simple regression (given root)
+result1a <- root_to_tip_regression(
+  tree_path = tree_path_divraw,
+  metadata  = meta,
+  name_col  = name_col,
+  date_col  = date_col,
+  best_root = FALSE,
+  n_sd      = n_sd
+)
+result1a$summary
+result1a$outliers
+result1a$plot
+
+# best fit (search for root maximising R^2)
+result1b <- root_to_tip_regression(
+  tree_path = tree_path_divraw,
+  metadata  = meta,
+  name_col  = name_col,
+  date_col  = date_col,
+  best_root = TRUE,
+  n_sd      = n_sd
+)
+result1b$summary
+result1b$outliers
+result1b$plot
+
+outliers1b <- result1b$outliers
+```
+
+### 2. Examine tips in the top-right corner of the plot
+
+Gold points are the most diverse sequences sitting above the expected clock rate.
+
+```{r top-quad, echo=FALSE}
+x_cut <- median(result1b$data$date_num)
+y_cut <- y_cut_val
+
+df1 <- result1b$data
+top_right <- df1 %>%
+  filter(date_num > x_cut, rtt > y_cut)
+
+target_points <- df1[df1$tip %in% top_right$tip, ]
+
+result1b$plot +
+  geom_point(
+    data        = target_points,
+    aes(x = date_num, y = rtt),
+    color       = "gold",
+    size        = 2.2,
+    alpha       = 0.9,
+    inherit.aes = FALSE
+  )
+```
+
+Are they clustering above the expected clock rate? If yes, this could be an
+evolutionary jump.
+
+### 3. Re-plot the trees with these target points identified
+
+Are these same sequences clustering in a single clade? If yes, it might be an
+emerging variant; if no, then not.
+
+In the time tree:
+
+```{r timetree-targets, fig.height = 12, fig.width = 8, echo=FALSE}
+treeplotdata <- p3$data
+target_tips  <- treeplotdata[treeplotdata$label %in% target_points$tip, ]
+
+p3 +
+  geom_tippoint(data = target_tips, color = "black", size = 4.5) +
+  geom_tippoint(data = target_tips, color = "gold",  size = 4)
+```
+
+In the diversity tree:
+
+```{r divtree-targets, fig.height = 12, fig.width = 8, echo=FALSE}
+treeplotdata1 <- p$data
+target_tips1  <- treeplotdata1[treeplotdata1$label %in% target_points$tip, ]
+
+p +
+  geom_tippoint(data = target_tips1, color = "black", size = 4.5) +
+  geom_tippoint(data = target_tips1, color = "gold",  size = 4)
+```
+
+```{r cluster-info, echo=FALSE}
+# metadata for the identified candidate cluster
+meta %>%
+  filter(.data[[name_col]] %in% target_points$tip) -> cluster_info
+cluster_info
+```
+
+Interpretation notes: if the candidate sequences span multiple locations and a
+wide date range they are less likely to represent a single local outbreak.
+Recent collection dates within a tight cluster increase the likelihood of a
+mutational advantage worth monitoring. Continue surveillance for additional
+recent cases/sequences in any flagged cluster.
+
+## Methods notes
+
+Using Ebolaflow output. Data and metadata from Pathoplexus. Root-to-tip fitting
+based on Clockor2 methods (https://github.com/clockor2/clockor2).

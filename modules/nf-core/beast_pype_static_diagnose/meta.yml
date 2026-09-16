@@ -1,0 +1,76 @@
+name: beast_pype_static_diagnose
+description: |
+  Run beast_pype's static-diagnose-and-merge command to diagnose convergence
+  and merge outputs from multiple BEAST2 MCMC runs. Produces a diagnostic
+  HTML notebook report and merged log/tree files.
+keywords:
+  - beast2
+  - phylogenetics
+  - mcmc
+  - diagnostics
+  - convergence
+  - merge
+tools:
+  - beast_pype:
+      description: |
+        A Python pipeline tool for BEAST2 that provides static diagnostics
+        and merging of multiple MCMC chain outputs.
+      homepage: https://pypi.org/project/beast-pype/
+      licence: ["MIT"]
+      identifier: beast_pype
+
+input:
+  - - meta:
+        type: map
+        description: |
+          Groovy map containing sample information.
+          e.g. `[id: 'sample1']`
+    - beast_outputs:
+        type: file
+        description: |
+          Collection of BEAST2 output files (.log and .trees) from multiple
+          replicate runs to diagnose and merge.
+        pattern: "*.{log,trees,xml.state}"
+
+output:
+  - results:
+      - meta:
+          type: map
+          description: Sample information map
+      - "${prefix}*":
+          type: file
+          description: All output files produced by the diagnose-and-merge step
+  - notebook:
+      - meta:
+          type: map
+          description: Sample information map
+      - "${prefix}*.html":
+          type: file
+          description: HTML diagnostic notebook report
+          pattern: "*.html"
+  - merged_log:
+      - meta:
+          type: map
+          description: Sample information map
+      - "${prefix}*.log":
+          type: file
+          description: Merged MCMC log file (after burn-in removal)
+          pattern: "*.log"
+  - merged_trees:
+      - meta:
+          type: map
+          description: Sample information map
+      - "${prefix}*.trees":
+          type: file
+          description: Merged tree file (after burn-in removal)
+          pattern: "*.trees"
+  - versions:
+      - versions.yml:
+          type: file
+          description: File containing software versions
+          pattern: "versions.yml"
+
+authors:
+  - "@mgrunnill"
+maintainers:
+  - "@mgrunnill"

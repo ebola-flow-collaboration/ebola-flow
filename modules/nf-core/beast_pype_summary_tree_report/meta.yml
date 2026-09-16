@@ -1,0 +1,57 @@
+name: "beast_pype_summary_tree_report"
+description: Generate a summary tree report from BEAST2 TreeAnnotator output using beast_pype
+keywords:
+  - beast2
+  - phylogenetics
+  - summary tree
+  - report
+  - beast_pype
+tools:
+  - "beast_pype":
+      description: "A pipeline tool for BEAST2 analysis and reporting"
+      homepage: "https://pypi.org/project/beast-pype/"
+      documentation: "https://pypi.org/project/beast-pype/"
+      licence: ["MIT"]
+
+input:
+  - - meta:
+        type: map
+        description: |
+          Groovy Map containing sample information
+          e.g. `[ id:'test' ]`
+    - summary_tree:
+        type: file
+        description: Summary tree file from TreeAnnotator (nexus format)
+        pattern: "*.{tree,nexus,nex}"
+    - beast_xml:
+        type: file
+        description: BEAST2 XML configuration file used for the analysis
+        pattern: "*.xml"
+
+output:
+  - html:
+      - meta:
+          type: map
+          description: Groovy Map containing sample information
+      - "*.html":
+          type: file
+          description: HTML report of summary tree analysis
+          pattern: "*_summary_tree_report.html"
+  - notebook:
+      - meta:
+          type: map
+          description: Groovy Map containing sample information
+      - "*.ipynb":
+          type: file
+          description: Jupyter notebook of summary tree analysis
+          pattern: "*_summary_tree_report.ipynb"
+  - versions:
+      - "versions.yml":
+          type: file
+          description: File containing software versions
+          pattern: "versions.yml"
+
+authors:
+  - "@mgrunnill"
+maintainers:
+  - "@mgrunnill"

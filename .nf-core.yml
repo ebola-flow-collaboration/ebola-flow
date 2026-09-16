@@ -1,0 +1,80 @@
+repository_type: pipeline
+
+nf_core_version: 3.5.2
+
+lint:
+  files_unchanged:
+    - CODE_OF_CONDUCT.md
+    - assets/nf-core-ebola-flow_logo_light.png
+    - docs/images/nf-core-ebola-flow_logo_light.png
+    - docs/images/nf-core-ebola-flow_logo_dark.png
+    - .github/ISSUE_TEMPLATE/bug_report.yml
+    - .github/CONTRIBUTING.md
+    - .github/PULL_REQUEST_TEMPLATE.md
+    - assets/email_template.txt
+    - docs/README.md
+    - .github/ISSUE_TEMPLATE/bug_report.yml
+    - .github/ISSUE_TEMPLATE/config.yml
+    - .github/ISSUE_TEMPLATE/feature_request.yml
+    - .github/PULL_REQUEST_TEMPLATE.md
+    - .github/workflows/branch.yml
+    - .github/workflows/linting_comment.yml
+    - .github/workflows/linting.yml
+    - .github/CONTRIBUTING.md
+    - .github/.dockstore.yml
+    - .github/CONTRIBUTING.md
+    - assets/sendmail_template.txt
+    - .github/CONTRIBUTING.md
+  nextflow_config:
+    - manifest.name
+    - manifest.homePage
+  multiqc_config: false
+  files_exist:
+    - conf/igenomes.config
+    - conf/igenomes_ignored.config
+    - CODE_OF_CONDUCT.md
+    - assets/nf-core-ebola-flow_logo_light.png
+    - docs/images/nf-core-ebola-flow_logo_light.png
+    - docs/images/nf-core-ebola-flow_logo_dark.png
+    - .github/ISSUE_TEMPLATE/config.yml
+    - .github/workflows/awstest.yml
+    - .github/workflows/awsfulltest.yml
+    - .github/ISSUE_TEMPLATE/bug_report.yml
+    - .github/ISSUE_TEMPLATE/feature_request.yml
+    - .github/PULL_REQUEST_TEMPLATE.md
+    - .github/CONTRIBUTING.md
+    - .github/.dockstore.yml
+    - .github/workflows/branch.yml
+    - .github/workflows/nf-test.yml
+    - .github/actions/get-shards/action.yml
+    - .github/actions/nf-test/action.yml
+    - .github/workflows/linting_comment.yml
+    - .github/workflows/linting.yml
+    - assets/multiqc_config.yml
+  readme:
+    - nextflow_badge
+    - nfcore_template_badge
+    - nextflow_badge
+
+template:
+  org: PHAC-NML
+  name: Ebola-Flow
+  description: Ebola-Flow is proposed nextflow pipeline for Phylodynamic analysis
+    of 2026 outbreak Ebola Bundibugyo Virus WGSs from [pathoplexus](https://pathoplexus.org/ebola-bdbv/search).
+    This pipeline will use components from [BEAST_pype](https://github.com/m-d-grunnill/BEAST_pype)
+    but will have a more specific focus like [CoV-Flow](https://peercommunityjournal.org/articles/10.24072/pcjournal.333/).
+  author: Martin Grunnill
+  version: 1.0.0dev
+  force: true
+  outdir: .
+  skip_features:
+    - github
+    - github_badges
+    - ci
+    - igenomes
+    - multiqc
+    - fastqc
+    - seqera_platform
+    - gpu
+    - codespaces
+  is_nfcore: false

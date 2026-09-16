@@ -1,0 +1,45 @@
+---
+name: "treeannotator"
+description: Summarise posterior tree distributions from BEAST2 into a single annotated tree
+keywords:
+  - phylogenetics
+  - beast2
+  - treeannotator
+  - MCC
+  - CCD
+tools:
+  - "treeannotator":
+      description: "TreeAnnotator is a program in the BEAST2 package that summarises a sample of trees produced by BEAST."
+      homepage: "https://www.beast2.org/"
+      documentation: "https://www.beast2.org/treeannotator/"
+      licence: ["LGPL-2.1-or-later"]
+      identifier: "beast2"
+
+input:
+  - - meta:
+        type: map
+        description: |
+          Groovy Map containing sample information.
+          e.g. `[ id:'sample1' ]`
+    - trees:
+        type: file
+        description: NEXUS file containing posterior tree samples (merged .trees from BEAST2)
+        pattern: "*.{trees,nexus}"
+
+output:
+  - tree:
+      - meta:
+          type: map
+          description: Sample information map
+      - "*.tree":
+          type: file
+          description: Annotated summary tree (e.g. MCC or CCD consensus)
+          pattern: "*.tree"
+  - versions:
+      - "versions.yml":
+          type: file
+          description: File containing software versions
+          pattern: "versions.yml"
+
+authors:
+  - "@mgrunnill"

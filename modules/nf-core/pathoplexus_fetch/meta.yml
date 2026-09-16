@@ -1,0 +1,51 @@
+name: "pathoplexus_fetch"
+description: Download unaligned nucleotide sequences and metadata from Pathoplexus LAPIS API
+keywords:
+  - pathoplexus
+  - download
+  - sequences
+  - metadata
+  - ebola
+tools:
+  - curl:
+      description: Command-line tool for transferring data with URLs
+      homepage: https://curl.se/
+      documentation: https://curl.se/docs/
+      licence: ["curl"]
+  - pandas:
+      description: Python data analysis library
+      homepage: https://pandas.pydata.org/
+      documentation: https://pandas.pydata.org/docs/
+      licence: ["BSD-3-Clause"]
+input:
+  - - meta:
+        type: map
+        description: |
+          Groovy Map containing sample information.
+          e.g. `[ id:'ebola_bdbv', organism:'ebola-bdbv', date_from:'2026-01-01' ]`
+output:
+  - fasta:
+      - meta:
+          type: map
+          description: Groovy Map containing sample information
+      - "*.fasta":
+          type: file
+          description: Unaligned nucleotide sequences in FASTA format
+          pattern: "*.fasta"
+  - metadata:
+      - meta:
+          type: map
+          description: Groovy Map containing sample information
+      - "*.tsv":
+          type: file
+          description: Sample metadata in TSV format
+          pattern: "*.tsv"
+  - versions:
+      - "versions.yml":
+          type: file
+          description: File containing software versions
+          pattern: "versions.yml"
+authors:
+  - "@mgrunnill"
+maintainers:
+  - "@mgrunnill"

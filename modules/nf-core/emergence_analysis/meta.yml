@@ -1,0 +1,74 @@
+name: "emergence_analysis"
+description: Variant emergence surveillance analytics - root-to-tip regression, clock-outlier detection, and highlighted tree plots rendered as an R Markdown report
+keywords:
+  - emergence
+  - surveillance
+  - root-to-tip
+  - molecular clock
+  - phylogenetics
+  - ggtree
+tools:
+  - "rmarkdown":
+      description: "Dynamic report generation in R"
+      homepage: "https://rmarkdown.rstudio.com/"
+      documentation: "https://rmarkdown.rstudio.com/"
+      licence: ["GPL-3.0"]
+      identifier: ""
+  - "ggtree":
+      description: "An R package for visualization of tree and annotation data"
+      homepage: "https://bioconductor.org/packages/ggtree/"
+      documentation: "https://yulab-smu.top/treedata-book/"
+      licence: ["Artistic-2.0"]
+      identifier: ""
+input:
+  - - meta:
+        type: map
+        description: |
+          Groovy Map containing sample information
+          e.g. `[ id:'run1' ]`
+    - div_tree_raw:
+        type: file
+        description: Diversity tree before clock-outlier removal (e.g. IQ-TREE .treefile)
+        pattern: "*.{treefile,nwk,tree}"
+    - div_tree_clean:
+        type: file
+        description: Genetic-distance tree after clock-outlier removal (TreeTime)
+        pattern: "*.nwk"
+    - time_tree:
+        type: file
+        description: Temporal (time-scaled) tree after clock-outlier removal (TreeTime)
+        pattern: "*.nwk"
+    - metadata:
+        type: file
+        description: Sample metadata file with sequence names and collection dates
+        pattern: "*.{csv,tsv}"
+output:
+  - html:
+      - meta:
+          type: map
+          description: |
+            Groovy Map containing sample information
+            e.g. `[ id:'run1' ]`
+      - "*_emergence_analysis.html":
+          type: file
+          description: Rendered HTML emergence analysis report
+          pattern: "*_emergence_analysis.html"
+  - rmd:
+      - meta:
+          type: map
+          description: |
+            Groovy Map containing sample information
+            e.g. `[ id:'run1' ]`
+      - "*_emergence_analysis.Rmd":
+          type: file
+          description: R Markdown source of the emergence analysis report
+          pattern: "*_emergence_analysis.Rmd"
+  - versions:
+      - "versions.yml":
+          type: file
+          description: File containing software versions
+          pattern: "versions.yml"
+authors:
+  - "@mgrunnill"
+maintainers:
+  - "@mgrunnill"

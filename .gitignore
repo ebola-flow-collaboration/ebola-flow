@@ -1,0 +1,14 @@
+.nextflow*
+.ipynb_checkpoints/
+.vscode/
+work/
+/data/
+results/
+.DS_Store
+testing/
+testing*
+*.pyc
+test_results/
+null/
+logs/
+ebola-flow.code-workspace

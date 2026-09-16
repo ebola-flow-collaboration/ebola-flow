@@ -1,0 +1,59 @@
+name: "beast_pype_parameters_report"
+description: Generate a parameters report from merged BEAST2 log and XML files using beast_pype
+keywords:
+  - BEAST2
+  - parameters
+  - report
+  - diagnostics
+  - phylogenetics
+tools:
+  - "beast_pype":
+      description: "BEAST2 pipeline utilities for diagnostics and reporting"
+      homepage: "https://pypi.org/project/beast-pype/"
+      documentation: "https://pypi.org/project/beast-pype/"
+      licence: ["GPL-2.0"]
+      identifier: "beast_pype"
+input:
+  - - meta:
+        type: map
+        description: |
+          Groovy Map containing sample information
+          e.g. `[ id:'run1' ]`
+    - merged_log:
+        type: file
+        description: Merged BEAST2 log file (.log, .csv, or .tsv)
+        pattern: "*.{log,csv,tsv}"
+    - beast_xml:
+        type: file
+        description: BEAST2 XML configuration file
+        pattern: "*.xml"
+output:
+  - html:
+      - meta:
+          type: map
+          description: |
+            Groovy Map containing sample information
+            e.g. `[ id:'run1' ]`
+      - "*_parameters_report.html":
+          type: file
+          description: HTML parameters report
+          pattern: "*_parameters_report.html"
+  - notebook:
+      - meta:
+          type: map
+          description: |
+            Groovy Map containing sample information
+            e.g. `[ id:'run1' ]`
+      - "*_parameters_report.ipynb":
+          type: file
+          description: Jupyter notebook with parameters report
+          pattern: "*_parameters_report.ipynb"
+  - versions:
+      - "versions.yml":
+          type: file
+          description: File containing software versions
+          pattern: "versions.yml"
+authors:
+  - "@mgrunnill"
+maintainers:
+  - "@mgrunnill"

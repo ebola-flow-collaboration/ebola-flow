@@ -1,0 +1,55 @@
+name: "metadata_report"
+description: Generate a report summarising sample metadata using beast_pype
+keywords:
+  - metadata
+  - report
+  - collection dates
+  - phylogenetics
+  - beast_pype
+tools:
+  - "beast_pype":
+      description: "BEAST2 pipeline utilities for diagnostics and reporting"
+      homepage: "https://pypi.org/project/beast-pype/"
+      documentation: "https://pypi.org/project/beast-pype/"
+      licence: ["GPL-2.0"]
+      identifier: "beast_pype"
+input:
+  - - meta:
+        type: map
+        description: |
+          Groovy Map containing sample information
+          e.g. `[ id:'run1' ]`
+    - metadata:
+        type: file
+        description: Sample metadata file (.csv or .tsv). Multiple files trigger comparative report.
+        pattern: "*.{csv,tsv}"
+output:
+  - html:
+      - meta:
+          type: map
+          description: |
+            Groovy Map containing sample information
+            e.g. `[ id:'run1' ]`
+      - "*_metadata_report.html":
+          type: file
+          description: HTML metadata report
+          pattern: "*_metadata_report.html"
+  - notebook:
+      - meta:
+          type: map
+          description: |
+            Groovy Map containing sample information
+            e.g. `[ id:'run1' ]`
+      - "*_metadata_report.ipynb":
+          type: file
+          description: Jupyter notebook with metadata report
+          pattern: "*_metadata_report.ipynb"
+  - versions:
+      - "versions.yml":
+          type: file
+          description: File containing software versions
+          pattern: "versions.yml"
+authors:
+  - "@mgrunnill"
+maintainers:
+  - "@mgrunnill"

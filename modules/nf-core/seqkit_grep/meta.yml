@@ -1,0 +1,56 @@
+name: seqkit_grep
+description: Filter FASTA sequences by removing entries whose IDs match a provided list.
+keywords:
+  - fasta
+  - filter
+  - sequences
+  - seqkit
+  - grep
+tools:
+  - seqkit:
+      description: |
+        SeqKit is a cross-platform and ultrafast toolkit for FASTA/Q file
+        manipulation. seqkit grep searches for sequences by header name,
+        sequence content, or ID using plain text or regular expressions.
+      homepage: https://bioinf.shenwei.me/seqkit/
+      documentation: https://bioinf.shenwei.me/seqkit/usage/#grep
+      tool_dev_url: https://github.com/shenwei356/seqkit
+      doi: 10.1371/journal.pone.0163962
+      licence:
+        - "MIT"
+      identifier: biotools:seqkit
+input:
+  - - meta:
+        type: map
+        description: |
+          Groovy map containing sample information,
+          e.g. [ id: 'test' ]
+    - fasta:
+        type: file
+        description: Input FASTA file to filter.
+        pattern: "*.{fa,fasta,fna}"
+    - id_list:
+        type: file
+        description: |
+          Plain text file with one sequence ID per line.
+          Sequences matching these IDs will be removed from the output.
+        pattern: "*.txt"
+output:
+  fasta:
+    - - meta:
+          type: map
+          description: Groovy Map containing sample information
+      - "*_filtered.fasta":
+          type: file
+          description: Filtered FASTA file with matching sequences removed.
+          pattern: "*_filtered.fasta"
+  versions_seqkit:
+    - - ${task.process}:
+          type: string
+          description: The name of the process
+      - seqkit:
+          type: string
+          description: The name of the tool
+      - "seqkit version | sed 's/seqkit v//'":
+          type: eval
+          description: The expression to obtain the version of the tool

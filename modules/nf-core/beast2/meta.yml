@@ -1,0 +1,95 @@
+name: beast2
+description: Bayesian Evolutionary Analysis by Sampling Trees. BEAST 2 performs Bayesian
+  phylogenetic and phylodynamic analysis using MCMC.
+keywords:
+  - phylogenetics
+  - phylodynamics
+  - bayesian
+  - mcmc
+  - beast
+tools:
+  - beast2:
+      description: |
+        BEAST 2 is a cross-platform program for Bayesian phylogenetic analysis
+        of molecular sequences. It uses MCMC to average over tree space so that
+        each tree is weighted proportional to its posterior probability.
+      homepage: https://www.beast2.org
+      documentation: https://www.beast2.org/tutorials/
+      tool_dev_url: https://github.com/CompEvol/beast2
+      doi: 10.1371/journal.pcbi.1003537
+      licence:
+        - "LGPL v2.1-or-later"
+      identifier: biotools:beast2
+input:
+  - - meta:
+        type: map
+        description: |
+          Groovy map containing sample information,
+          e.g. [ id: 'test', seed: 42 ]
+    - xml:
+        type: file
+        description: BEAST 2 XML configuration file specifying the model, priors, sequences, age/date metadata and MCMC settings.
+        pattern: "*.xml"
+        ontologies: []
+output:
+  log:
+    - - meta:
+          type: map
+          description: Groovy Map containing sample information
+      - "*.log":
+          type: file
+          description: BEAST 2 trace log file containing parameter samples from the posterior distribution.
+          pattern: "*.log"
+          ontologies: []
+  trees:
+    - - meta:
+          type: map
+          description: Groovy Map containing sample information
+      - "*.trees":
+          type: file
+          description: BEAST 2 tree log file containing sampled trees from the posterior distribution.
+          pattern: "*.trees"
+          ontologies: []
+  state:
+    - - meta:
+          type: map
+          description: Groovy Map containing sample information
+      - "*.state.xml":
+          type: file
+          description: BEAST 2 state file that can be used to resume a run.
+          pattern: "*.state.xml"
+          ontologies: []
+  xml_state:
+    - - meta:
+          type: map
+          description: Groovy Map containing sample information
+      - "*.xml.state":
+          type: file
+          description: Alternative state file format produced by some BEAST 2 versions.
+          pattern: "*.xml.state"
+          ontologies: []
+  versions_beast2:
+    - - ${task.process}:
+          type: string
+          description: The name of the process
+      - beast2:
+          type: string
+          description: The name of the tool
+      - "beast -version 2>&1 | head -n1 | sed 's/.*v//'":
+          type: eval
+          description: The expression to obtain the version of the tool
+topics:
+  versions:
+    - - ${task.process}:
+          type: string
+          description: The name of the process
+      - beast2:
+          type: string
+          description: The name of the tool
+      - "beast -version 2>&1 | head -n1 | sed 's/.*v//'":
+          type: eval
+          description: The expression to obtain the version of the tool
+authors:
+  - "@m-d-grunnill"
+maintainers:
+  - "@m-d-grunnill"

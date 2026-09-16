@@ -1,0 +1,16 @@
+name: ebola_flow
+channels:
+  - conda-forge
+  - bioconda
+dependencies:
+  # Nextflow
+  - bioconda::nextflow>=26.04.4
+  - bioconda::nf-core>=2.0.0
+  # Pip
+  - conda-forge::pip
+  # Mamba
+  - conda-forge::mamba
+
+
+
+
