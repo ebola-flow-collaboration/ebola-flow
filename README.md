@@ -58,7 +58,7 @@ nextflow run main.nf -profile ad_hoc,mamba,slurm
 
 ## Usage
 
-**Note if you are using conda environments on a HPC such as pancakes.** 
+**Note if you are using conda environments on a HPC.** 
 
 Creating conda environments on a HPC is incredibly slow due to limited internet bandwidth and filesystem overhead on shared storage. If conda environments need to be created (e.g., first run from a new location, or after a dependency change), you should pre-build them from a **VM that shares the same filesystem** rather than directly on the HPC. To do this from such a VM activate a conda environment containing Nextflow first (e.g., `conda activate nextflow-26.04.4`) and then run: 
 
@@ -304,8 +304,81 @@ sequences dropped for having an invalid collection date (reason
 `clean_metadata date filter`). Columns: `accessionVersion`, `accession`,
 `reason_for_removal`, `source_for_reason`.
 
-Running the pipeline on the Pancakes HPC via SLURM batch scripts and scheduling
-recurring runs with scrontab is documented in the [root `README.md`](../../README.md).
+## Running on a HPC with SLURM
+
+The pipeline can be submitted to a SLURM-managed HPC with a batch script that
+activates the Nextflow conda environment and launches `main.nf`. A minimal
+example (`run-ebola-flow.slurm`):
+
+```bash
+#!/bin/bash
+#SBATCH --job-name=ebola_flow       # Job name
+#SBATCH --output=%x_%j.out          # %x = job name, %j = job ID
+#SBATCH --cpus-per-task=5           # CPU cores per task
+#SBATCH --time=5-00:00:00           # Max runtime (D-HH:MM:SS)
+#SBATCH --mem=8G                    # Memory
+#SBATCH --partition=<partition>     # Partition/queue name
+#SBATCH --account=<account>         # Account to charge (if required)
+
+source activate /path/to/conda/envs/nextflow   # Use `source`, NOT `conda`
+nextflow run main.nf -profile ad_hoc,mamba,slurm --outdir_base <output_base>
+```
+
+Submit it with:
+
+```bash
+sbatch run-ebola-flow.slurm
+```
+
+Adjust `--partition`, `--account`, the conda environment path, the profile, and
+`--outdir_base` to your environment.
+
+## Scheduling Recurring Runs with Scrontab
+
+SLURM's **scrontab** (SLURM cron) schedules recurring jobs directly through the
+SLURM scheduler, without a separate cron daemon.
+
+```bash
+scrontab -e          # Open scrontab for editing (uses $EDITOR/$VISUAL, defaults to vi)
+scrontab -l          # List current scrontab entries
+scrontab -r          # Remove all scrontab entries
+```
+
+`#SCRON` directives work like `#SBATCH`: they set the resource requests and job
+options for the scheduled job. **Only the `#SCRON` directives in the scrontab
+take effect — any `#SBATCH` directives inside the target `.slurm` script are
+ignored.** An entry that runs the batch script at 16:00 every Friday:
+
+```
+#SCRON --job-name=ebola_flow_weekly
+#SCRON --output=/path/to/logs/ebola_flow_%j.out
+#SCRON --chdir=/path/to/ebola-flow
+#SCRON --cpus-per-task=5
+#SCRON --time=5-00:00:00
+#SCRON --mem=8G
+#SCRON --partition=<partition>
+#SCRON --account=<account>
+00 16 * * 5 /path/to/run-ebola-flow.slurm
+```
+
+Cron field order is `minute hour day-of-month month day-of-week` (day-of-week
+`0`/`7` = Sunday, `1` = Monday, `5` = Friday).
+
+**IMPORTANT**:
+* The directory in the `--output=` path must already exist — scrontab will
+  **not** create it.
+* The `--chdir=` path must point to a working copy of this pipeline.
+* There must be a blank newline at the end of the scrontab, otherwise you get
+  `scrontab: error: something is broken. \nThere are errors in your crontab.`
+
+Verify the schedule with `scrontab -l`. Scrontab requires the `ScronEnabled`
+option in your SLURM configuration; check with your HPC admin if `scrontab -e`
+returns an error. If scrontab is unavailable, a standard system crontab can call
+`sbatch` instead:
+
+```
+00 16 * * 5 sbatch /path/to/run-ebola-flow.slurm
+```
 
 ## Pipeline Workflow Diagrams
 
