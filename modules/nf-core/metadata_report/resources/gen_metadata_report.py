@@ -1,78 +1,126 @@
 #!/usr/bin/env python3
-"""Standalone sample-metadata report generator.
+"""Standalone metadata report generator.
 
-This script inlines ``beast_pype.report_gen.gen_metadata_report`` so the
-ebola-flow pipeline can build the sample-metadata report directly from the
-underlying source, rather than dispatching through the ``beast_pype
-metadata-report`` CLI command. After the notebook is built it is executed and
-exported to HTML, mirroring the behaviour of the ``metadata-report`` CLI
-command (see ``beast_pype/cli.py``).
+This script builds a Jupyter notebook that summarises the *data* of an
+ebola-flow pipeline run, then executes it and exports it to HTML.
 
-The notebook cells generated here import helper functions
-(``read_metadata``, ``describe_collection_dates``,
-``plot_collection_date_histogram`` etc.) from the installed ``beast_pype``
-package at notebook-execution time.
+The report is organised into the following sections:
 
-In addition to the collection-date summaries produced by beast_pype, this
-version appends a section reporting whether any sequences were submitted on a
-Friday evening, Saturday or Sunday in the DRC time zone (UTC+2).
+1. **Pathoplexus Run Date and Time** - the date and time the Pathoplexus data
+   was fetched for this run.
+2. **Metadata Report - Raw Pathoplexus Pull** - the collection-date summaries
+   (plus out-of-hours submission check and geographic breakdowns) run on the
+   *raw* Pathoplexus metadata.
+3. **Metadata Report - After clean_metadata Step** - the same summaries run on
+   the metadata after the ``clean_metadata`` step.
+4. **Metadata Report - After Outlier Removal** - the same summaries run on the
+   metadata *after* outliers are removed in the
+   ``modules/nf-core/iterative_treetime`` step.
+
+The notebook cells import helper functions (``read_metadata``,
+``describe_collection_dates``, ``plot_collection_date_histogram`` etc.) from the
+installed ``beast_pype`` package at notebook-execution time.
 """
 import argparse
-import os
 
 import nbformat as nbf
 from nbconvert import HTMLExporter
 from beast_pype.nb_utils import execute_notebook, make_kernelspec
 
 
-def _weekend_submission_cells(metadata_paths, xml_set_comparisons):
-    """Build notebook cells reporting weekend/Friday-evening submissions.
+# --------------------------------------------------------------------------- #
+# Section 1: Pathoplexus run date and time
+# --------------------------------------------------------------------------- #
+def _pathoplexus_datetime_cells(timestamp_path):
+    """Build notebook cells reporting the Pathoplexus fetch date and time.
 
-    Submissions are assessed in the DRC time zone (UTC+2). A submission counts
-    as "out of hours" if it was made on a Saturday, a Sunday, or on a Friday at
-    or after 18:00 (local UTC+2 time).
-
-    The submission timestamp is read from the ``submittedAtTimestamp`` field
-    (Unix epoch seconds) when present. If that field is absent the section
-    reports that submission-time information is unavailable.
+    ``timestamp_path`` is a file whose contents are an ISO-8601 timestamp (or
+    a Unix epoch in seconds). If the file is missing or cannot be parsed the
+    modification time of the file is used as a fallback.
     """
-    if xml_set_comparisons:
-        paths_repr = repr(metadata_paths)
-        load_line = (
-            f"metadata_paths = {paths_repr}\n"
-            "submission_frames = []\n"
-            "for _xml_set, _path in metadata_paths.items():\n"
-            "    _sep = '\\t' if str(_path).endswith(('.tsv', '.txt')) else ','\n"
-            "    _df = pd.read_csv(_path, sep=_sep)\n"
-            "    _df['xml set'] = _xml_set\n"
-            "    submission_frames.append(_df)\n"
-            "submission_df = pd.concat(submission_frames, ignore_index=True)"
-        )
-    else:
-        paths_repr = repr(metadata_paths)
-        load_line = (
-            f"metadata_path = {paths_repr}\n"
-            "_sep = '\\t' if str(metadata_path).endswith(('.tsv', '.txt')) else ','\n"
-            "submission_df = pd.read_csv(metadata_path, sep=_sep)"
-        )
-
-    analysis_code = (
+    code = (
+        "import os\n"
         "import pandas as pd\n"
         "from IPython.display import display, Markdown\n"
         "\n"
-        f"{load_line}\n"
+        "timestamp_path = " + repr(timestamp_path) + "\n"
+        "fetched_at = None\n"
+        "if timestamp_path and os.path.exists(timestamp_path):\n"
+        "    with open(timestamp_path) as _f:\n"
+        "        _raw = _f.read().strip()\n"
+        "    if _raw:\n"
+        "        try:\n"
+        "            fetched_at = pd.to_datetime(float(_raw), unit='s')\n"
+        "        except ValueError:\n"
+        "            try:\n"
+        "                fetched_at = pd.to_datetime(_raw)\n"
+        "            except (ValueError, TypeError):\n"
+        "                fetched_at = None\n"
+        "    if fetched_at is None:\n"
+        "        fetched_at = pd.to_datetime(os.path.getmtime(timestamp_path), unit='s')\n"
+        "\n"
+        "if fetched_at is None:\n"
+        "    display(Markdown('The Pathoplexus fetch date and time is unavailable.'))\n"
+        "else:\n"
+        "    display(Markdown(\n"
+        "        'The Pathoplexus data for this run was fetched on '\n"
+        "        f'**{fetched_at.strftime(\"%Y-%m-%d %H:%M:%S\")}**.'))"
+    )
+    return [
+        nbf.v4.new_markdown_cell(
+            "## Pathoplexus Run Date and Time\n\n"
+            "This section reports the date and time the Pathoplexus data was "
+            "fetched for this pipeline run."),
+        nbf.v4.new_code_cell(code),
+    ]
+
+
+# --------------------------------------------------------------------------- #
+# Section 2, 3 & 4: Metadata report (run on raw, cleaned and outlier-removed)
+# --------------------------------------------------------------------------- #
+def _metadata_report_cells(metadata_path, section_title, collection_date_field,
+                           var_suffix):
+    """Build the collection-date summary + out-of-hours cells for one dataset.
+
+    ``var_suffix`` keeps notebook variable names unique between the sections
+    that share the same logic (raw vs. cleaned vs. outlier-removed data).
+    """
+    md_var = "metadata_" + var_suffix
+    path_var = "metadata_path_" + var_suffix
+    sub_var = "submission_df_" + var_suffix
+
+    load_code = (
+        "import warnings\n"
+        "warnings.filterwarnings('ignore')\n"
+        "import pandas as pd\n"
+        "from IPython.display import display, Markdown\n"
+        "from beast_pype.outputs import (read_metadata, describe_collection_dates,\n"
+        "    plot_collection_date_histogram)\n"
+        "\n"
+        "collection_date_field = '" + collection_date_field + "'\n"
+        + path_var + " = " + repr(metadata_path) + "\n"
+        + md_var + " = read_metadata(" + path_var + ", collection_date_field)"
+    )
+
+    # Out-of-hours (weekend / Friday evening) submission check, in DRC UTC+2.
+    weekend_code = (
+        "import pandas as pd\n"
+        "from IPython.display import display, Markdown\n"
+        "\n"
+        "_sep = '\\t' if str(" + path_var + ").endswith(('.tsv', '.txt')) else ','\n"
+        + sub_var + " = pd.read_csv(" + path_var + ", sep=_sep)\n"
         "\n"
         "# DRC time zone is UTC+2 (no daylight saving). 'Etc/GMT-2' == UTC+2.\n"
         "DRC_TZ = 'Etc/GMT-2'\n"
         "timestamp_field = 'submittedAtTimestamp'\n"
         "\n"
-        "if timestamp_field not in submission_df.columns:\n"
+        "if timestamp_field not in " + sub_var + ".columns:\n"
         "    display(Markdown(\n"
         "        f'No `{timestamp_field}` field found in the metadata, so '\n"
         "        'submission times could not be assessed.'))\n"
         "else:\n"
         "    submitted_utc = pd.to_datetime(\n"
-        "        submission_df[timestamp_field], unit='s', utc=True)\n"
+        "        " + sub_var + "[timestamp_field], unit='s', utc=True)\n"
         "    submitted_local = submitted_utc.dt.tz_convert(DRC_TZ)\n"
         "    dayofweek = submitted_local.dt.dayofweek  # Mon=0 .. Sun=6\n"
         "    hour = submitted_local.dt.hour\n"
@@ -82,7 +130,7 @@ def _weekend_submission_cells(metadata_paths, xml_set_comparisons):
         "    sunday = dayofweek == 6\n"
         "    out_of_hours = friday_evening | saturday | sunday\n"
         "\n"
-        "    report = submission_df.copy()\n"
+        "    report = " + sub_var + ".copy()\n"
         "    report['Submitted (UTC+2)'] = submitted_local.dt.strftime('%Y-%m-%d %H:%M:%S')\n"
         "    report['Submission day'] = submitted_local.dt.day_name()\n"
         "\n"
@@ -100,8 +148,6 @@ def _weekend_submission_cells(metadata_paths, xml_set_comparisons):
         "        id_cols = [c for c in ('accessionVersion', 'accession', 'strain')\n"
         "                   if c in report.columns]\n"
         "        show_cols = id_cols + ['Submitted (UTC+2)', 'Submission day']\n"
-        "        if 'xml set' in report.columns:\n"
-        "            show_cols = ['xml set'] + show_cols\n"
         "        display(report.loc[out_of_hours, show_cols]\n"
         "                .sort_values('Submitted (UTC+2)')\n"
         "                .reset_index(drop=True))\n"
@@ -109,52 +155,143 @@ def _weekend_submission_cells(metadata_paths, xml_set_comparisons):
         "        display(Markdown('No out-of-hours submissions were found.'))"
     )
 
+    cells = [
+        nbf.v4.new_markdown_cell("## " + section_title),
+        nbf.v4.new_code_cell(load_code),
+        nbf.v4.new_markdown_cell("### Summary statistics of collection dates"),
+        nbf.v4.new_code_cell(
+            "describe_collection_dates(" + md_var + ", collection_date_field)"),
+        nbf.v4.new_markdown_cell("### Histogram of collection dates"),
+        nbf.v4.new_code_cell(
+            "fig, ax = plot_collection_date_histogram(" + md_var + ", collection_date_field)"),
+        nbf.v4.new_markdown_cell(
+            "### Out-of-hours submissions (DRC time zone, UTC+2)\n\n"
+            "Whether any sequences were submitted on a **Friday evening "
+            "(>= 18:00), Saturday or Sunday** in the Democratic Republic of "
+            "the Congo time zone (UTC+2)."),
+        nbf.v4.new_code_cell(weekend_code),
+    ]
+    cells += _geo_location_cells(path_var, var_suffix)
+    return cells
+
+
+# --------------------------------------------------------------------------- #
+# Geographic location breakdowns (bar charts + raw count tables)
+# --------------------------------------------------------------------------- #
+def _geo_location_cells(path_var, var_suffix):
+    """Build geographic-location bar-chart + count-table cells for one dataset.
+
+    Produces, for each of ``geoLocCountry``, ``geoLocAdmin1``, ``geoLocAdmin2``
+    and ``geoLocCity``, a bar chart and a raw count table (including a count of
+    missing/unspecified entries). ``geoLocAdmin2`` values are normalised to
+    title case before counting so that block-caps (e.g. ``BUTEMBO``) and
+    first-letter-caps (e.g. ``Butembo``) variants are collapsed into a single
+    location.
+
+    ``path_var`` is the name of the notebook variable already holding the path
+    to this dataset's metadata file (set in ``_metadata_report_cells``). This
+    reuses that loaded path rather than re-reading it from disk.
+    """
+    geo_var = "geo_df_" + var_suffix
+
+    code = (
+        "import matplotlib.pyplot as plt\n"
+        "import pandas as pd\n"
+        "from IPython.display import display, Markdown\n"
+        "\n"
+        "_sep = '\\t' if str(" + path_var + ").endswith(('.tsv', '.txt')) else ','\n"
+        + geo_var + " = pd.read_csv(" + path_var + ", sep=_sep, dtype=str)\n"
+        "\n"
+        "# Fields to summarise, in order of geographic granularity. The bool\n"
+        "# flag marks fields whose values should be normalised to title case\n"
+        "# before counting (to collapse block-caps vs first-letter-caps).\n"
+        "geo_fields = [\n"
+        "    ('geoLocCountry', False),\n"
+        "    ('geoLocAdmin1', False),\n"
+        "    ('geoLocAdmin2', True),\n"
+        "    ('geoLocCity', False),\n"
+        "]\n"
+        "\n"
+        "for field, normalise_case in geo_fields:\n"
+        "    display(Markdown(f'### {field}'))\n"
+        "    if field not in " + geo_var + ".columns:\n"
+        "        display(Markdown(f'No `{field}` field found in the metadata.'))\n"
+        "        continue\n"
+        "    values = " + geo_var + "[field].copy()\n"
+        "    # Treat blank/whitespace-only strings as missing.\n"
+        "    values = values.where(~values.fillna('').str.strip().eq(''), other=pd.NA)\n"
+        "    # Treat sentinel 'no data' strings (case-insensitive) as missing too.\n"
+        "    sentinels = {'not provided', 'unknown', 'unspecified', 'na', 'n/a',\n"
+        "                 'none', 'null', 'not applicable', 'missing'}\n"
+        "    _norm = values.fillna('').str.strip().str.lower()\n"
+        "    values = values.where(~_norm.isin(sentinels), other=pd.NA)\n"
+        "    if normalise_case:\n"
+        "        values = values.where(values.isna(), values.str.strip().str.title())\n"
+        "    counts = values.value_counts(dropna=False)\n"
+        "    counts.index = [('(unspecified)' if pd.isna(i) else i) for i in counts.index]\n"
+        "    count_table = (counts.rename_axis(field).reset_index(name='count'))\n"
+        "    display(count_table)\n"
+        "    # Bar chart of counts, including the '(unspecified)' bucket as its\n"
+        "    # own bar so missing/blank entries are visible in the chart too.\n"
+        "    plot_counts = counts.sort_values(ascending=False)\n"
+        "    if plot_counts.empty:\n"
+        "        display(Markdown('No values to plot for this field.'))\n"
+        "        continue\n"
+        "    fig, ax = plt.subplots(figsize=(max(6, 0.4 * len(plot_counts)), 4))\n"
+        "    ax.bar(plot_counts.index.astype(str), plot_counts.values)\n"
+        "    ax.set_xlabel(field)\n"
+        "    ax.set_ylabel('Number of sequences')\n"
+        "    ax.set_title(f'Sequences by {field}')\n"
+        "    plt.setp(ax.get_xticklabels(), rotation=45, ha='right')\n"
+        "    fig.tight_layout()\n"
+        "    plt.show()"
+    )
+
     return [
         nbf.v4.new_markdown_cell(
-            "## Out-of-hours Submissions (DRC time zone, UTC+2)\n\n"
-            "This section reports whether any sequences were submitted on a "
-            "**Friday evening (>= 18:00), Saturday or Sunday** in the "
-            "Democratic Republic of the Congo time zone (UTC+2)."),
-        nbf.v4.new_code_cell(analysis_code),
+            "### Geographic location breakdown\n\n"
+            "Bar charts and raw count tables of sequences by "
+            "`geoLocCountry`, `geoLocAdmin1`, `geoLocAdmin2` and "
+            "`geoLocCity`. `geoLocAdmin2` values are normalised to title "
+            "case so that block-caps and first-letter-caps variants of the "
+            "same location are counted together. Missing or blank entries, "
+            "along with sentinel 'no data' strings such as `Not Provided` and "
+            "`Unknown`, are reported as `(unspecified)` in both the count "
+            "tables and the bar charts."),
+        nbf.v4.new_code_cell(code),
     ]
 
 
+# --------------------------------------------------------------------------- #
+# Notebook assembly
+# --------------------------------------------------------------------------- #
 def gen_metadata_report(output_report_path,
-                        metadata_paths,
+                        raw_metadata_path,
+                        cleaned_metadata_path,
+                        filtered_metadata_path,
+                        pathoplexus_timestamp_path,
                         collection_date_field='collection_date',
-                        xml_set_comparisons=False,
-                        xml_set_label='xml set',
                         kernel_name='beast_pype',
                         as_version=4):
-    """Generate a notebook report summarising sample metadata.
-
-    Copied from ``beast_pype.report_gen.gen_metadata_report`` so the
-    report-generation logic lives with the pipeline module, then extended with
-    an out-of-hours (weekend / Friday evening) submission section.
-
-    For simple workflows (``xml_set_comparisons=False``) the report summarises a
-    single metadata file via :func:`pandas.DataFrame.describe` and a histogram.
-
-    For comparative workflows (``xml_set_comparisons=True``) the report starts
-    with a combined summary and histogram of all sequences, then adds a section
-    comparing each xml set via :func:`pandas.DataFrame.describe` and a stacked
-    histogram.
+    """Generate a notebook report summarising the run metadata.
 
     Parameters
     ----------
     output_report_path : str
         Path (including filename) where the report notebook will be saved.
-    metadata_paths : str or dict of {str: str}
-        If ``xml_set_comparisons`` is False, a path to a single metadata file
-        (``.csv`` or ``.tsv``). If ``xml_set_comparisons`` is True, a mapping of
-        xml set name to its metadata file path.
+    raw_metadata_path : str
+        Path to the raw Pathoplexus metadata file (.csv or .tsv).
+    cleaned_metadata_path : str
+        Path to the metadata file after the ``clean_metadata`` step
+        (excluded IDs and invalid dates removed) (.csv or .tsv).
+    filtered_metadata_path : str
+        Path to the metadata file after outliers are removed in the
+        ``iterative_treetime`` step (.csv or .tsv).
+    pathoplexus_timestamp_path : str
+        Path to a file containing the Pathoplexus fetch timestamp.
     collection_date_field : str, default 'collection_date'
         Name of the field in the metadata containing collection dates
         (formatted YYYY-MM-DD).
-    xml_set_comparisons : bool, default False
-        Whether the report should compare xml sets.
-    xml_set_label : str, default 'xml set'
-        Label used for the xml set grouping variable in comparative reports.
     kernel_name : str, default 'beast_pype'
         Name of the Jupyter (python) kernel to use when executing the notebook.
     as_version : int, default 4
@@ -170,82 +307,35 @@ def gen_metadata_report(output_report_path,
 
     notebook['cells'] = [
         nbf.v4.new_markdown_cell(
-            "# Sample Collection Date Report\n\n" +
-            "This report summarises the sample collection date metadata used in "
-            "this analysis."
-        ),
-        nbf.v4.new_code_cell(
-            "import warnings\n" +
-            "warnings.filterwarnings('ignore')\n" +
-            "import pandas as pd\n" +
-            "from beast_pype.outputs import (read_metadata, describe_collection_dates,\n" +
-            "    plot_collection_date_histogram)"
-        ),
+            "# Metadata Report\n\n"
+            "This report summarises the data used in this analysis "
+            "(sample collection dates, submission times and geographic "
+            "locations)."),
     ]
 
-    if xml_set_comparisons:
-        if not isinstance(metadata_paths, dict):
-            raise ValueError(
-                "metadata_paths must be a dict of {xml_set: path} when "
-                "xml_set_comparisons is True.")
-        notebook['cells'].append(
-            nbf.v4.new_code_cell(
-                "from beast_pype.outputs import (\n" +
-                "    describe_collection_dates_by_xml_set,\n" +
-                "    plot_stacked_collection_date_histogram)"
-            ))
-        notebook['cells'].append(
-            nbf.v4.new_code_cell(
-                f"collection_date_field = '{collection_date_field}'\n" +
-                f"xml_set_label = '{xml_set_label}'\n" +
-                f"metadata_paths = {metadata_paths!r}\n" +
-                "metadata_dict = {xml_set: read_metadata(path, collection_date_field)\n" +
-                "    for xml_set, path in metadata_paths.items()}\n" +
-                "combined_metadata = pd.concat(metadata_dict.values(), ignore_index=True)"
-            ))
-        notebook['cells'] += [
-            nbf.v4.new_markdown_cell(
-                "## All Sequences\n\n" +
-                "### Summary statistics of collection dates"),
-            nbf.v4.new_code_cell(
-                "describe_collection_dates(combined_metadata, collection_date_field)"),
-            nbf.v4.new_markdown_cell("### Histogram of collection dates"),
-            nbf.v4.new_code_cell(
-                "fig, ax = plot_collection_date_histogram(combined_metadata, collection_date_field)\n"),
-            nbf.v4.new_markdown_cell(
-                "## Comparison of XML Sets\n\n" +
-                "### Summary statistics of collection dates per xml set"),
-            nbf.v4.new_code_cell(
-                "describe_collection_dates_by_xml_set(metadata_dict, collection_date_field, xml_set_label=xml_set_label)"),
-            nbf.v4.new_markdown_cell("### Stacked histogram of collection dates per xml set"),
-            nbf.v4.new_code_cell(
-                "fig, ax = plot_stacked_collection_date_histogram(metadata_dict, collection_date_field, xml_set_label=xml_set_label)\n"),
-        ]
-    else:
-        if isinstance(metadata_paths, dict):
-            raise ValueError(
-                "metadata_paths must be a single path (str) when "
-                "xml_set_comparisons is False.")
-        notebook['cells'].append(
-            nbf.v4.new_code_cell(
-                f"collection_date_field = '{collection_date_field}'\n" +
-                f"metadata_path = '{metadata_paths}'\n" +
-                "metadata = read_metadata(metadata_path, collection_date_field)"
-            ))
-        notebook['cells'] += [
-            nbf.v4.new_markdown_cell(
-                "## Summary statistics of collection dates"),
-            nbf.v4.new_code_cell(
-                "describe_collection_dates(metadata, collection_date_field)"),
-            nbf.v4.new_markdown_cell("## Histogram of collection dates"),
-            nbf.v4.new_code_cell(
-                "fig, ax = plot_collection_date_histogram(metadata, collection_date_field)\n" +
-                "fig"),
-        ]
+    # Section 1: Pathoplexus run date and time
+    notebook['cells'] += _pathoplexus_datetime_cells(pathoplexus_timestamp_path)
 
-    # --- Out-of-hours (weekend / Friday evening) submission section ---
-    notebook['cells'] += _weekend_submission_cells(
-        metadata_paths, xml_set_comparisons)
+    # Section 2: metadata report on the raw Pathoplexus pull
+    notebook['cells'] += _metadata_report_cells(
+        raw_metadata_path,
+        "Metadata Report - Raw Pathoplexus Pull",
+        collection_date_field,
+        var_suffix='raw')
+
+    # Section 3: metadata report after the clean_metadata step
+    notebook['cells'] += _metadata_report_cells(
+        cleaned_metadata_path,
+        "Metadata Report - After clean_metadata Step",
+        collection_date_field,
+        var_suffix='cleaned')
+
+    # Section 4: metadata report after outlier removal (iterative_treetime)
+    notebook['cells'] += _metadata_report_cells(
+        filtered_metadata_path,
+        "Metadata Report - After Outlier Removal (iterative_treetime)",
+        collection_date_field,
+        var_suffix='filtered')
 
     with open(output_report_path, 'w') as f:
         nbf.write(notebook, f)
@@ -255,17 +345,21 @@ def gen_metadata_report(output_report_path,
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Generate a report notebook summarising sample metadata, "
-                    "then execute it and export to HTML.")
+        description="Generate a metadata report notebook, then execute it and "
+                    "export to HTML.")
     parser.add_argument(
-        '-m', '--metadata', action='append', required=True,
-        help='Path to a metadata file (.csv or .tsv). Can be specified multiple '
-             'times. When more than one is provided, comparative (xml-set) '
-             'visualisations are used.')
+        '-r', '--raw_metadata', required=True,
+        help='Path to the raw Pathoplexus metadata file (.csv or .tsv).')
     parser.add_argument(
-        '-n', '--xml_set_name', action='append', default=[],
-        help='Name for an xml set, paired with each --metadata in order. Only '
-             'used (and required) when more than one --metadata is provided.')
+        '-m', '--cleaned_metadata', required=True,
+        help='Path to the metadata file after the clean_metadata step '
+             '(.csv or .tsv).')
+    parser.add_argument(
+        '-f', '--filtered_metadata', required=True,
+        help='Path to the outlier-removed metadata file (.csv or .tsv).')
+    parser.add_argument(
+        '-t', '--pathoplexus_timestamp', required=True,
+        help='Path to a file containing the Pathoplexus fetch timestamp.')
     parser.add_argument(
         '-o', '--output', required=True,
         help='Path to save the output report notebook (.ipynb).')
@@ -274,31 +368,18 @@ def main():
         help='Name of field in metadata containing collection dates '
              '(YYYY-MM-DD). Default: "collection_date".')
     parser.add_argument(
-        '--xml_set_label', default='xml set',
-        help='Label for the xml set grouping variable in comparative reports. '
-             'Default: "xml set".')
-    parser.add_argument(
         '-k', '--kernel_name', default='beast_pype',
         help='Name of the Jupyter kernel to use when executing the notebook. '
              'Default: "beast_pype".')
     args = parser.parse_args()
 
-    xml_set_comparisons = len(args.metadata) > 1
-    if xml_set_comparisons:
-        if len(args.xml_set_name) != len(args.metadata):
-            parser.error(
-                'When more than one --metadata is provided, a matching '
-                '--xml_set_name must be given for each (same number, same order).')
-        metadata_paths = dict(zip(args.xml_set_name, args.metadata))
-    else:
-        metadata_paths = args.metadata[0]
-
     notebook_path = gen_metadata_report(
         output_report_path=args.output,
-        metadata_paths=metadata_paths,
+        raw_metadata_path=args.raw_metadata,
+        cleaned_metadata_path=args.cleaned_metadata,
+        filtered_metadata_path=args.filtered_metadata,
+        pathoplexus_timestamp_path=args.pathoplexus_timestamp,
         collection_date_field=args.collection_date_field,
-        xml_set_comparisons=xml_set_comparisons,
-        xml_set_label=args.xml_set_label,
         kernel_name=args.kernel_name,
     )
 
