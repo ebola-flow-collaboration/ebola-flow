@@ -29,10 +29,11 @@ The pipeline performs the following steps:
 19. **Emergence analysis** — variant emergence surveillance report combining the raw IQ-TREE diversity tree, the clock-cleaned genetic-distance tree, the temporal tree, and metadata into an R Markdown report flagging candidate emergence/clock outliers
 20. **BEAST2 XML generation** — generate BEAST2 XML(s) from template(s) using the filtered/downsampled alignment and initial tree
 21. **BEAST2** — install required packages (e.g., BDMM-Prime) and run MCMC chains (output files prefixed with the template ID, e.g. `<template_id>_rep_1.log`, `<template_id>_rep_2.trees`, etc.)
-22. **Data and run stats report** — consolidated report covering the Pathoplexus fetch date/time, metadata stats for the raw pull, post–`clean_metadata` data, and outlier-removed data, plus per-model BEAST2 run times (replaces the former standalone metadata report)
-23. **BEAST_pype diagnostics** — merge logs/trees, run convergence diagnostics producing a report per set of runs
-24. **TreeAnnotator** — summarise posterior tree(s) in low-memory mode with a JVM heap sized to the task's allocated memory
-25. **BEAST_pype reports** — generate parameters report and summary tree report(s)
+22. **Metadata report** — report covering the Pathoplexus fetch date/time and metadata stats (collection dates, submission times, geographic locations) for the raw Pathoplexus pull, the post–`clean_metadata` data, and the outlier-removed (post–TreeTime) data
+23. **BEAST run stats report** — per-model BEAST2 run times (start, end, and duration) extracted from the BEAST2 `.out` screen logs
+24. **BEAST_pype diagnostics** — merge logs/trees, run convergence diagnostics producing a report per set of runs
+25. **TreeAnnotator** — summarise posterior tree(s) in low-memory mode with a JVM heap sized to the task's allocated memory
+26. **BEAST_pype reports** — generate parameters report and summary tree report(s)
 
 ## Profiles
 

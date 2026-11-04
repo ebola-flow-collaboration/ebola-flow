@@ -1,10 +1,9 @@
-name: "data_and_run_stats_report"
-description: Generate a data and run stats report (metadata + BEAST run times) using beast_pype
+name: "beast_run_stats_report"
+description: Generate a BEAST run stats report (per-model run times) using beast_pype
 keywords:
-  - metadata
   - report
-  - collection dates
   - run times
+  - beast
   - phylogenetics
   - beast_pype
 tools:
@@ -20,22 +19,10 @@ input:
         description: |
           Groovy Map containing sample information
           e.g. `[ id:'run1' ]`
-    - raw_metadata:
-        type: file
-        description: Raw Pathoplexus metadata file (.csv or .tsv).
-        pattern: "*.{csv,tsv}"
-    - filtered_metadata:
-        type: file
-        description: Metadata file after outliers removed in iterative_treetime (.csv or .tsv).
-        pattern: "*.{csv,tsv}"
-    - pathoplexus_timestamp:
-        type: file
-        description: File containing the Pathoplexus fetch timestamp.
-        pattern: "*.txt"
-    - beast_models:
+    - beast_out_models:
         type: list
-        description: List of BEAST model names.
-    - beast_outs:
+        description: List of BEAST model names (aligned with beast_out_files).
+    - beast_out_files:
         type: file
         description: BEAST .out screen-log files (named model__run.out).
         pattern: "*.out"
@@ -46,20 +33,20 @@ output:
           description: |
             Groovy Map containing sample information
             e.g. `[ id:'run1' ]`
-      - "*_data_and_run_stats_report.html":
+      - "*_beast_run_stats_report.html":
           type: file
-          description: HTML data and run stats report
-          pattern: "*_data_and_run_stats_report.html"
+          description: HTML BEAST run stats report
+          pattern: "*_beast_run_stats_report.html"
   - notebook:
       - meta:
           type: map
           description: |
             Groovy Map containing sample information
             e.g. `[ id:'run1' ]`
-      - "*_data_and_run_stats_report.ipynb":
+      - "*_beast_run_stats_report.ipynb":
           type: file
-          description: Jupyter notebook with data and run stats report
-          pattern: "*_data_and_run_stats_report.ipynb"
+          description: Jupyter notebook with BEAST run stats report
+          pattern: "*_beast_run_stats_report.ipynb"
   - versions:
       - "versions.yml":
           type: file

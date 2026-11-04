@@ -37,7 +37,8 @@ include { BEAST_PYPE_STATIC_DIAGNOSE } from './modules/nf-core/beast_pype_static
 include { BEAST_PYPE_PARAMETERS_REPORT } from './modules/nf-core/beast_pype_parameters_report/main'
 include { TREEANNOTATOR              } from './modules/nf-core/treeannotator/main'
 include { BEAST_PYPE_SUMMARY_TREE_REPORT } from './modules/nf-core/beast_pype_summary_tree_report/main'
-include { DATA_AND_RUN_STATS_REPORT } from './modules/nf-core/data_and_run_stats_report/main'
+include { METADATA_REPORT } from './modules/nf-core/metadata_report/main'
+include { BEAST_RUN_STATS_REPORT } from './modules/nf-core/beast_run_stats_report/main'
 include { TEMPEST_METADATA                   } from './modules/nf-core/tempest_metadata/main'
 include { TEMPEST_METADATA as TEMPEST_METADATA_NO_REF } from './modules/nf-core/tempest_metadata/main'
 include { PIPELINE_INITIALISATION } from './subworkflows/local/utils_nfcore_ebola-flow_pipeline'
@@ -78,10 +79,10 @@ workflow EBOLAFLOW {
     if (params.fasta) {
         ch_fasta    = channel.fromPath(params.fasta, checkIfExists: true)
             .map { fasta -> tuple([id: fasta.baseName], fasta) }
-        ch_metadata = channel.fromPath(params.metadata, checkIfExists: true)
+        ch_metadata = channel.fromPath(params.metadata, checkIfExists: true).first()
         // No Pathoplexus fetch when a FASTA is supplied directly.
-        ch_raw_metadata          = channel.fromPath(params.metadata, checkIfExists: true)
-        ch_cleaned_metadata      = channel.fromPath(params.metadata, checkIfExists: true)
+        ch_raw_metadata          = channel.fromPath(params.metadata, checkIfExists: true).first()
+        ch_cleaned_metadata      = channel.fromPath(params.metadata, checkIfExists: true).first()
         ch_pathoplexus_timestamp = channel.of(file('NO_FILE'))
     } else {
         ch_pathoplexus_meta = channel.of(
@@ -113,10 +114,10 @@ workflow EBOLAFLOW {
             .map { meta, json_file, ids -> tuple(meta, json_file, ids) }
 
         CLEAN_METADATA(ch_clean_meta_input)
-        ch_metadata = CLEAN_METADATA.out.metadata.map { meta, tsv -> tsv }
+        ch_metadata = CLEAN_METADATA.out.metadata.map { meta, tsv -> tsv }.first()
         // Raw Pathoplexus pull (unfiltered) and post-clean_metadata data
-        ch_raw_metadata     = CLEAN_METADATA.out.metadata_raw.map { meta, tsv -> tsv }
-        ch_cleaned_metadata = CLEAN_METADATA.out.metadata_full.map { meta, tsv -> tsv }
+        ch_raw_metadata     = CLEAN_METADATA.out.metadata_raw.map { meta, tsv -> tsv }.first()
+        ch_cleaned_metadata = CLEAN_METADATA.out.metadata_full.map { meta, tsv -> tsv }.first()
 
         //
         // MODULE: Remove sequences listed in ids_to_remove using seqkit
@@ -161,6 +162,7 @@ workflow EBOLAFLOW {
             def first_line = ref_file.text?.readLines()?.getAt(0)
             first_line ? first_line.replaceFirst('^>', '').split('\\s+')[0] : 'REFERENCE'
         }
+        .first()
 
     //
     // MODULE: Optionally fetch outgroup sequences, clean them, and merge with main FASTA before alignment
@@ -227,7 +229,7 @@ workflow EBOLAFLOW {
                 }
             ch_outgroup = ch_ref_id
                 .combine(ch_outgroup_ids_for_iqtree)
-                .map { items -> items.flatten().join(',') }
+                .map { items -> [items].flatten().findAll { it != null && it != '' }.join(',') }
         } else if (build_with_ref) {
             // Reference only (no outgroup)
             ch_outgroup = ch_ref_id
@@ -286,12 +288,10 @@ workflow EBOLAFLOW {
                     .map { meta, fasta ->
                         fasta.readLines().findAll { it.startsWith('>') }.collect { it.replaceFirst('^>', '').split('\\s+')[0] }
                     }
-                    .flatten()
-                    .collect()
 
                 ch_reroot_ids = ch_ref_id
                     .combine(ch_outgroup_ids)
-                    .map { items -> items.flatten() }
+                    .map { items -> [items].flatten().findAll { it != null && it != '' } }
             } else {
                 ch_reroot_ids = ch_ref_id.map { id -> [id] }
             }
@@ -396,12 +396,12 @@ workflow EBOLAFLOW {
 
                 // Outputs for BEAST2_XML_GEN
                 ch_aligned_fasta = DOWNSAMPLE.out.fasta
-                ch_metadata = DOWNSAMPLE.out.metadata.map { meta, csv -> csv }
+                ch_metadata = DOWNSAMPLE.out.metadata.map { meta, csv -> csv }.first()
                 ch_initial_tree = ITERATIVE_TREETIME_POST.out.temporal_tree.map { meta, tree -> tree }
             } else {
                 // No downsampling — use ITERATIVE_TREETIME outputs directly
                 ch_aligned_fasta = ITERATIVE_TREETIME.out.fasta
-                ch_metadata = ITERATIVE_TREETIME.out.metadata.map { meta, tsv -> tsv }
+                ch_metadata = ITERATIVE_TREETIME.out.metadata.map { meta, tsv -> tsv }.first()
                 ch_initial_tree = ITERATIVE_TREETIME.out.temporal_tree.map { meta, tree -> tree }
             }
 
@@ -514,12 +514,12 @@ workflow EBOLAFLOW {
                 )
 
                 ch_aligned_fasta = DOWNSAMPLE.out.fasta
-                ch_metadata = DOWNSAMPLE.out.metadata.map { meta, csv -> csv }
+                ch_metadata = DOWNSAMPLE.out.metadata.map { meta, csv -> csv }.first()
                 ch_initial_tree = ITERATIVE_TREETIME_POST.out.temporal_tree.map { meta, tree -> tree }
             } else {
                 // No downsampling — use ITERATIVE_TREETIME outputs directly
                 ch_aligned_fasta = ITERATIVE_TREETIME.out.fasta
-                ch_metadata = ITERATIVE_TREETIME.out.metadata.map { meta, tsv -> tsv }
+                ch_metadata = ITERATIVE_TREETIME.out.metadata.map { meta, tsv -> tsv }.first()
                 ch_initial_tree = ITERATIVE_TREETIME.out.temporal_tree.map { meta, tree -> tree }
             }
         }
@@ -567,12 +567,25 @@ workflow EBOLAFLOW {
     BEAST2(ch_beast_input)
 
     //
-    // MODULE: Generate the data and run stats report
+    // MODULE: Generate the metadata report
     //   - Pathoplexus fetch date/time
     //   - metadata report on the raw Pathoplexus pull
     //   - metadata report after the clean_metadata step
     //   - metadata report on the outlier-removed (iterative_treetime) data
-    //   - BEAST run times per model
+    //
+    ch_metadata_report_input = ch_raw_metadata
+        .combine(ch_cleaned_metadata)               // after clean_metadata
+        .combine(ch_metadata)                       // outlier-removed metadata
+        .combine(ch_pathoplexus_timestamp)
+        .map { raw_meta, cleaned_meta, filtered_meta, timestamp ->
+            def new_meta = [id: params.run_name ?: 'beast2']
+            tuple(new_meta, raw_meta, cleaned_meta, filtered_meta, timestamp)
+        }
+
+    METADATA_REPORT(ch_metadata_report_input)
+
+    //
+    // MODULE: Generate the BEAST run stats report (run times per model)
     //
     // Build aligned model-name / .out-file lists from the BEAST2 screen logs.
     // Collect model names and out-files into two parallel, order-stable lists.
@@ -588,18 +601,14 @@ workflow EBOLAFLOW {
         .collect()
         .map { outs -> [outs] }
 
-    ch_report_input = ch_raw_metadata
-        .combine(ch_cleaned_metadata)               // after clean_metadata
-        .combine(ch_metadata)                       // outlier-removed metadata
-        .combine(ch_pathoplexus_timestamp)
-        .combine(ch_beast_models)
+    ch_beast_stats_input = ch_beast_models
         .combine(ch_beast_outs)
-        .map { raw_meta, cleaned_meta, filtered_meta, timestamp, models, outs ->
+        .map { models, outs ->
             def new_meta = [id: params.run_name ?: 'beast2']
-            tuple(new_meta, raw_meta, cleaned_meta, filtered_meta, timestamp, models, outs)
+            tuple(new_meta, models, outs)
         }
 
-    DATA_AND_RUN_STATS_REPORT(ch_report_input)
+    BEAST_RUN_STATS_REPORT(ch_beast_stats_input)
 
     //
     // MODULE: Diagnose and merge BEAST2 outputs (per template)

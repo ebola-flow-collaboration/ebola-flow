@@ -1,9 +1,10 @@
 name: "metadata_report"
-description: Generate a report summarising sample metadata using beast_pype
+description: Generate a metadata report (collection dates, submission times, geographic locations) using beast_pype
 keywords:
   - metadata
   - report
   - collection dates
+  - geographic locations
   - phylogenetics
   - beast_pype
 tools:
@@ -19,10 +20,22 @@ input:
         description: |
           Groovy Map containing sample information
           e.g. `[ id:'run1' ]`
-    - metadata:
+    - raw_metadata:
         type: file
-        description: Sample metadata file (.csv or .tsv). Multiple files trigger comparative report.
+        description: Raw Pathoplexus metadata file (.csv or .tsv).
         pattern: "*.{csv,tsv}"
+    - cleaned_metadata:
+        type: file
+        description: Metadata file after the clean_metadata step (.csv or .tsv).
+        pattern: "*.{csv,tsv}"
+    - filtered_metadata:
+        type: file
+        description: Metadata file after outliers removed in iterative_treetime (.csv or .tsv).
+        pattern: "*.{csv,tsv}"
+    - pathoplexus_timestamp:
+        type: file
+        description: File containing the Pathoplexus fetch timestamp.
+        pattern: "*.txt"
 output:
   - html:
       - meta:
